@@ -8,8 +8,10 @@ echo "The Jenkins HD is : ${env.JENKINS_HOME}"
 properties([buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '3', numToKeepStr: '5')), [$class: 'JobLocalConfiguration', changeReasonComment: ''], pipelineTriggers([pollSCM('* * * * *')])])
     
 def mavenHome = tool name :'maven 3.9.3'
-try{   
+try{
+
 stage('CheckoutCode'){
+sendslacknotifications('STARTED')
 git branch: 'development', credentialsId: 'devopshari00', url: 'https://github.com/devopshari00/maven-web-application.git'
 }
 
