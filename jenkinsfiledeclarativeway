@@ -1,0 +1,98 @@
+pipeline{
+
+agent any
+tools {
+  maven 'maven 3.9.3'
+}
+
+triggers {
+  pollSCM '* * * * *'
+}
+options {
+  buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '5', daysToKeepStr: '2', numToKeepStr: '5')
+  timestamps()
+}
+
+
+
+stages{
+
+//checkoutCodestage
+stage('checkoutCode'){
+steps{
+sendslacknotifications('STARTED')
+git branch: 'development', credentialsId: 'devopshari00', url: 'https://github.com/devopshari00/maven-web-application.git'
+}
+}
+
+//Buildstage
+stage('Buildstage'){
+steps{
+sh "mvn clean package"
+}
+}
+
+//ExecuteSonarqubereport
+stage('ExecuteSonarqubereport'){
+steps{
+sh "mvn clean sonar:sonar"
+}
+}
+
+//uploadArtifactsIntoNexus
+stage('uploadArtifactsIntoNexus'){
+steps{
+sh "mvn clean deploy"
+}
+}
+
+
+//DeployAppIntoTomcatserver
+stage('DeployAppIntoTomcatserver'){
+steps{
+sshagent(['6ed7e4c1-4161-4bad-8516-0327124f36e1']) {
+sh "scp -o StrictHostKeyChecking=no target/maven-web-application.war ec2-user@172.31.42.179:/opt/apache-tomcat-9.0.78/webapps/" 
+}
+}
+}
+
+}//stagesclosing
+
+post {
+  success {
+  sendslacknotifications(currentBuild.result)
+  }
+  failure {
+    sendslacknotifications(currentBuild.result)
+  }
+}
+
+}//pipelineclosing
+
+def sendslacknotifications(String buildStatus = 'STARTED') {
+    // Build status of null means success.
+    buildStatus = buildStatus ?: 'SUCCESS'
+	
+	//Default values
+	def colorName = 'RED'
+	def colorCode = '#FF0000'
+	def subject = "${buildStatus}: Job '{env.Job_name} [${env.BUILD_NUMBER}]'"
+	def summary = "${subject} (${env.BUILD_URL})"
+
+    //Override values based on build status
+
+    if (buildStatus == 'STARTED') {
+	    color = 'YELLOW'
+        colorCode = '#FFFF00'
+    } else if (buildStatus == 'SUCCESS') {
+        color = 'GREEN'
+		colorCode = '#008000'
+    } else {
+	    color = 'RED'
+        colorCode = '#FF0000'
+    }
+
+    //send notifications
+	slackSend (color: colorCode, message: summary, channel: '#citibank-team')
+}
+
